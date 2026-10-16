@@ -15,8 +15,10 @@ const state = {
   imageOffsetY: 0,
   imageDragMode: false,
   imageDragStart: null,
+  brushSize: 1,
   drawing: false,
   strokeHistorySaved: false,
+  hoverCell: null,
   history: [],
   imageSampler: null,
 };
@@ -70,6 +72,32 @@ function nearestColor(rgb) {
     if (dist < bestDist) { bestDist = dist; best = item; }
   }
   return best;
+}
+
+function sampleCellColor(row, col) {
+  if (!state.image) return null;
+  const layout = getCanvasLayout();
+  const cellW = layout.width / state.cols;
+  const cellH = layout.height / state.rows;
+  const x = (col + 0.5) * cellW;
+  const y = (row + 0.5) * cellH;
+  const coverScale = Math.max(layout.width / state.image.naturalWidth, layout.height / state.image.naturalHeight);
+  const imageWidth = state.image.naturalWidth * coverScale * state.imageZoom;
+  const imageHeight = state.image.naturalHeight * coverScale * state.imageZoom;
+  const imageX = (layout.width - imageWidth) / 2 + layout.width * state.imageOffsetX;
+  const imageY = (layout.height - imageHeight) / 2 + layout.height * state.imageOffsetY;
+  const imgPxX = Math.floor((x - imageX) / imageWidth * state.image.naturalWidth);
+  const imgPxY = Math.floor((y - imageY) / imageHeight * state.image.naturalHeight);
+  if (imgPxX < 0 || imgPxX >= state.image.naturalWidth || imgPxY < 0 || imgPxY >= state.image.naturalHeight) return null;
+  if (!state.imageSampler) {
+    state.imageSampler = document.createElement("canvas");
+    state.imageSampler.width = state.image.naturalWidth;
+    state.imageSampler.height = state.image.naturalHeight;
+    state.imageSampler.getContext("2d", { willReadFrequently: true }).drawImage(state.image, 0, 0);
+  }
+  const sctx = state.imageSampler.getContext("2d", { willReadFrequently: true });
+  const pixel = sctx.getImageData(imgPxX, imgPxY, 1, 1).data;
+  return nearestColor([pixel[0], pixel[1], pixel[2]]);
 }
 
 function pickColor(event) {
@@ -136,8 +164,9 @@ function updateStats() {
   $("#canvas-size").textContent = `${state.rows} × ${state.cols}`;
   $("#filled-count").textContent = filled.toLocaleString("zh-CN");
   $("#selected-code").textContent = state.tool === "eraser" ? "橡皮擦" : (state.selectedCode || "未选择");
-  $("#tool-label").textContent = state.imageDragMode ? "拖动参考图" : (state.tool === "eraser" ? "橡皮擦" : state.tool === "picker" ? "取色器" : "画笔");
+  $("#tool-label").textContent = state.imageDragMode ? "拖动参考图" : (state.tool === "eraser" ? "橡皮擦" : state.tool === "picker" ? "取色器" : state.tool === "auto" ? "自动取色" : "画笔");
   $("#zoom-value").textContent = `${Math.round(state.zoom * 100)}%`;
+  $("#brush-value").textContent = state.brushSize;
   $("#image-zoom-value").textContent = `${Math.round(state.imageZoom * 100)}%`;
   $("#image-zoom-slider").value = Math.round(state.imageZoom * 100);
   $("#image-opacity-value").textContent = `${Math.round(state.imageOpacity * 100)}%`;
@@ -292,6 +321,22 @@ function draw() {
     const y = Math.round(row * cellH) + 0.5;
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(layout.width, y); ctx.stroke();
   }
+  const hover = state.hoverCell;
+  if (hover && !state.imageDragMode && state.tool !== "picker") {
+    const size = state.brushSize;
+    const start = -((size - 1) >> 1);
+    const row0 = Math.max(0, hover.row + start);
+    const col0 = Math.max(0, hover.col + start);
+    const row1 = Math.min(state.rows - 1, hover.row + start + size - 1);
+    const col1 = Math.min(state.cols - 1, hover.col + start + size - 1);
+    if (row1 >= row0 && col1 >= col0) {
+      ctx.fillStyle = "rgba(22,33,29,.10)";
+      ctx.fillRect(col0 * cellW, row0 * cellH, (col1 - col0 + 1) * cellW, (row1 - row0 + 1) * cellH);
+      ctx.strokeStyle = "rgba(22,33,29,.9)";
+      ctx.lineWidth = Math.max(1, 1.5 / state.zoom);
+      ctx.strokeRect(col0 * cellW + 0.5, row0 * cellH + 0.5, (col1 - col0 + 1) * cellW - 1, (row1 - row0 + 1) * cellH - 1);
+    }
+  }
 }
 
 function pointToCell(event) {
@@ -307,14 +352,37 @@ function pointToCell(event) {
 function paint(event) {
   const cell = pointToCell(event);
   if (!cell) return;
-  const nextCode = state.tool === "eraser" ? "" : state.selectedCode;
-  if (state.tool === "paint" && !nextCode) { notify("请先从 MARD 色板选择一个色号"); return; }
-  if (state.grid[cell.row][cell.col] === nextCode) return;
+  if (state.tool === "auto" && !state.image) { notify("请先载入参考图"); return; }
+  if (state.tool === "paint" && !state.selectedCode) { notify("请先从 MARD 色板选择一个色号"); return; }
+  const size = state.brushSize;
+  const start = -((size - 1) >> 1);
+  let changed = false;
+  for (let dr = start; dr < start + size; dr += 1) {
+    const row = cell.row + dr;
+    if (row < 0 || row >= state.rows) continue;
+    for (let dc = start; dc < start + size; dc += 1) {
+      const col = cell.col + dc;
+      if (col < 0 || col >= state.cols) continue;
+      let nextCode;
+      if (state.tool === "eraser") {
+        nextCode = "";
+      } else if (state.tool === "auto") {
+        const match = sampleCellColor(row, col);
+        if (!match) continue;
+        nextCode = match.code;
+      } else {
+        nextCode = state.selectedCode;
+      }
+      if (state.grid[row][col] === nextCode) continue;
+      state.grid[row][col] = nextCode;
+      changed = true;
+    }
+  }
+  if (!changed) return;
   if (!state.strokeHistorySaved) {
     pushHistory();
     state.strokeHistorySaved = true;
   }
-  state.grid[cell.row][cell.col] = nextCode;
   draw();
   updateStats();
 }
@@ -323,7 +391,10 @@ function updateToolButtons() {
   $("#paint-tool").classList.toggle("is-active", state.tool === "paint");
   $("#erase-tool").classList.toggle("is-active", state.tool === "eraser");
   $("#picker-tool").classList.toggle("is-active", state.tool === "picker");
+  $("#auto-color-tool").classList.toggle("is-active", state.tool === "auto");
   canvas.classList.toggle("is-picking", state.tool === "picker");
+  state.hoverCell = null;
+  draw();
   renderPalette();
   updateStats();
 }
@@ -475,6 +546,18 @@ $("#picker-tool").addEventListener("click", () => {
   state.tool = "picker";
   updateToolButtons();
 });
+$("#auto-color-tool").addEventListener("click", () => {
+  if (!state.image) { notify("请先载入参考图"); return; }
+  state.tool = "auto";
+  updateToolButtons();
+});
+function setBrushSize(size) {
+  state.brushSize = Math.max(1, Math.min(9, Math.round(Number(size) || 1)));
+  updateStats();
+}
+$("#brush-in").addEventListener("click", () => setBrushSize(state.brushSize + 1));
+$("#brush-out").addEventListener("click", () => setBrushSize(state.brushSize - 1));
+$("#brush-reset").addEventListener("click", () => { setBrushSize(1); notify("画笔大小已重置"); });
 $("#zoom-in").addEventListener("click", () => { state.zoom = Math.min(2.5, state.zoom + .1); updateStats(); draw(); });
 $("#zoom-out").addEventListener("click", () => { state.zoom = Math.max(.5, state.zoom - .1); updateStats(); draw(); });
 $("#zoom-reset").addEventListener("click", () => { state.zoom = 1; updateStats(); draw(); });
@@ -541,6 +624,12 @@ window.addEventListener("keydown", (event) => {
   const isPicker = (event.ctrlKey || event.metaKey) && key === "x" && !event.altKey && !event.shiftKey;
   const typing = /^(input|textarea|select)$/i.test(event.target.tagName);
   if (isUndo && !event.altKey) { event.preventDefault(); undo(); return; }
+  if ((key === "[" || key === "]") && !typing) {
+    event.preventDefault();
+    setBrushSize(state.brushSize + (key === "]" ? 1 : -1));
+    notify(`画笔大小：${state.brushSize}`);
+    return;
+  }
   if (isPicker && !typing) {
     event.preventDefault();
     if (!state.image) { notify("请先载入参考图"); return; }
@@ -573,6 +662,14 @@ canvas.addEventListener("pointerdown", (event) => {
   paint(event);
 });
 canvas.addEventListener("pointermove", (event) => {
+  if (!state.imageDragMode && state.tool !== "picker") {
+    const hover = pointToCell(event);
+    const changed = (hover?.row !== state.hoverCell?.row) || (hover?.col !== state.hoverCell?.col);
+    if (changed) {
+      state.hoverCell = hover;
+      draw();
+    }
+  }
   if (state.imageDragMode && state.imageDragStart) {
     const { clientX, clientY, offsetX, offsetY, width, height } = state.imageDragStart;
     state.imageOffsetX = Math.max(-1, Math.min(1, offsetX + (event.clientX - clientX) / width));
@@ -583,6 +680,7 @@ canvas.addEventListener("pointermove", (event) => {
   }
   if (state.drawing) paint(event);
 });
+canvas.addEventListener("pointerleave", () => { if (state.hoverCell) { state.hoverCell = null; draw(); } });
 canvas.addEventListener("pointerup", () => { state.drawing = false; state.strokeHistorySaved = false; state.imageDragStart = null; });
 canvas.addEventListener("pointercancel", () => { state.drawing = false; state.strokeHistorySaved = false; state.imageDragStart = null; });
 window.addEventListener("resize", draw);

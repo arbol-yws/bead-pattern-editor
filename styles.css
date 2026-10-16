@@ -79,6 +79,7 @@ h2 { font-size: 18px; font-weight: 600; }
 .tool-dot { width: 11px; height: 11px; border: 2px solid currentColor; border-radius: 50%; }
 .tool-eraser { font-size: 15px; line-height: 1; }
 .tool-picker { width: 11px; height: 11px; border-radius: 50%; background: currentColor; }
+.tool-auto { font-size: 13px; line-height: 1; }
 #pattern-canvas.is-picking { cursor: crosshair; }
 .zoom-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 10px; }
 .zoom-row > span:first-child { margin-right: auto; }
