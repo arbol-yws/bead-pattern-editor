@@ -83,8 +83,8 @@
             <span class="section-index">02</span>
           </div>
           <div class="dimension-fields">
-            <label>行数<input id="rows-input" type="number" min="1" max="240" value="32"></label>
-            <label>列数<input id="cols-input" type="number" min="1" max="240" value="32"></label>
+            <label>行数<input id="rows-input" type="number" min="1" max="240" value="64"></label>
+            <label>列数<input id="cols-input" type="number" min="1" max="240" value="64"></label>
           </div>
           <button class="button button-outline full-width" id="apply-grid-button" type="button">应用网格尺寸</button>
           <p class="field-note">调整尺寸会重置当前画板中的填色。</p>
@@ -98,6 +98,7 @@
           <div class="tool-switcher" role="group" aria-label="绘画工具">
             <button class="tool-button is-active" id="paint-tool" type="button"><span class="tool-dot"></span>画笔</button>
             <button class="tool-button" id="erase-tool" type="button"><span class="tool-eraser">⌫</span>橡皮擦</button>
+            <button class="tool-button" id="picker-tool" type="button"><span class="tool-picker"></span>取色器</button>
           </div>
           <div class="zoom-row">
             <span>网格缩放</span>
@@ -121,7 +122,7 @@
             <h2 id="canvas-title">未命名图纸</h2>
           </div>
           <div class="canvas-stats">
-            <span id="canvas-size">32 × 32</span>
+            <span id="canvas-size">64 × 64</span>
             <span class="status-chip"><i></i><span id="filled-count">0</span> 颗</span>
           </div>
         </div>
@@ -163,6 +164,6 @@
     </main>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="./app.js?v=6" defer></script>
+  <script src="./app.js?v=7" defer></script>
 </body>
 </html>

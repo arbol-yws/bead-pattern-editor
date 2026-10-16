@@ -3,8 +3,8 @@ const state = {
   image: null,
   imageUrl: null,
   imageName: "",
-  rows: 32,
-  cols: 32,
+  rows: 64,
+  cols: 64,
   grid: [],
   selectedCode: null,
   tool: "paint",
@@ -18,6 +18,7 @@ const state = {
   drawing: false,
   strokeHistorySaved: false,
   history: [],
+  imageSampler: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -58,6 +59,52 @@ function paletteItem(code) {
   return state.palette.find((item) => item.code === code);
 }
 
+function nearestColor(rgb) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const item of state.palette) {
+    const dr = item.rgb[0] - rgb[0];
+    const dg = item.rgb[1] - rgb[1];
+    const db = item.rgb[2] - rgb[2];
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bestDist) { bestDist = dist; best = item; }
+  }
+  return best;
+}
+
+function pickColor(event) {
+  if (!state.image) { notify("请先载入参考图"); return; }
+  const layout = getCanvasLayout();
+  const rect = canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left) * (layout.width / rect.width);
+  const y = (event.clientY - rect.top) * (layout.height / rect.height);
+  const coverScale = Math.max(layout.width / state.image.naturalWidth, layout.height / state.image.naturalHeight);
+  const imageWidth = state.image.naturalWidth * coverScale * state.imageZoom;
+  const imageHeight = state.image.naturalHeight * coverScale * state.imageZoom;
+  const imageX = (layout.width - imageWidth) / 2 + layout.width * state.imageOffsetX;
+  const imageY = (layout.height - imageHeight) / 2 + layout.height * state.imageOffsetY;
+  const imgPxX = Math.floor((x - imageX) / imageWidth * state.image.naturalWidth);
+  const imgPxY = Math.floor((y - imageY) / imageHeight * state.image.naturalHeight);
+  if (imgPxX < 0 || imgPxX >= state.image.naturalWidth || imgPxY < 0 || imgPxY >= state.image.naturalHeight) {
+    notify("请点击参考图区域内取色");
+    return;
+  }
+  if (!state.imageSampler) {
+    state.imageSampler = document.createElement("canvas");
+    state.imageSampler.width = state.image.naturalWidth;
+    state.imageSampler.height = state.image.naturalHeight;
+  }
+  const sctx = state.imageSampler.getContext("2d", { willReadFrequently: true });
+  sctx.drawImage(state.image, 0, 0);
+  const pixel = sctx.getImageData(imgPxX, imgPxY, 1, 1).data;
+  const match = nearestColor([pixel[0], pixel[1], pixel[2]]);
+  if (!match) { notify("色板为空，无法匹配"); return; }
+  state.selectedCode = match.code;
+  state.tool = "paint";
+  updateToolButtons();
+  notify(`取色匹配：${match.code} · ${match.name}`);
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -89,7 +136,7 @@ function updateStats() {
   $("#canvas-size").textContent = `${state.rows} × ${state.cols}`;
   $("#filled-count").textContent = filled.toLocaleString("zh-CN");
   $("#selected-code").textContent = state.tool === "eraser" ? "橡皮擦" : (state.selectedCode || "未选择");
-  $("#tool-label").textContent = state.imageDragMode ? "拖动参考图" : (state.tool === "eraser" ? "橡皮擦" : "画笔");
+  $("#tool-label").textContent = state.imageDragMode ? "拖动参考图" : (state.tool === "eraser" ? "橡皮擦" : state.tool === "picker" ? "取色器" : "画笔");
   $("#zoom-value").textContent = `${Math.round(state.zoom * 100)}%`;
   $("#image-zoom-value").textContent = `${Math.round(state.imageZoom * 100)}%`;
   $("#image-zoom-slider").value = Math.round(state.imageZoom * 100);
@@ -275,6 +322,8 @@ function paint(event) {
 function updateToolButtons() {
   $("#paint-tool").classList.toggle("is-active", state.tool === "paint");
   $("#erase-tool").classList.toggle("is-active", state.tool === "eraser");
+  $("#picker-tool").classList.toggle("is-active", state.tool === "picker");
+  canvas.classList.toggle("is-picking", state.tool === "picker");
   renderPalette();
   updateStats();
 }
@@ -398,6 +447,7 @@ function loadImage(file) {
     if (state.imageUrl) URL.revokeObjectURL(state.imageUrl);
     state.imageUrl = url;
     state.image = image;
+    state.imageSampler = null;
     state.imageName = file.name;
     state.imageZoom = 1;
     state.imageOpacity = 0.45;
@@ -420,6 +470,11 @@ $("#palette-search").addEventListener("input", renderPalette);
 $("#apply-grid-button").addEventListener("click", () => setGridSize($("#rows-input").value, $("#cols-input").value));
 $("#paint-tool").addEventListener("click", () => { state.tool = "paint"; updateToolButtons(); });
 $("#erase-tool").addEventListener("click", () => { state.tool = "eraser"; updateToolButtons(); });
+$("#picker-tool").addEventListener("click", () => {
+  if (!state.image) { notify("请先载入参考图"); return; }
+  state.tool = "picker";
+  updateToolButtons();
+});
 $("#zoom-in").addEventListener("click", () => { state.zoom = Math.min(2.5, state.zoom + .1); updateStats(); draw(); });
 $("#zoom-out").addEventListener("click", () => { state.zoom = Math.max(.5, state.zoom - .1); updateStats(); draw(); });
 $("#zoom-reset").addEventListener("click", () => { state.zoom = 1; updateStats(); draw(); });
@@ -481,10 +536,18 @@ $("#json-input").addEventListener("change", (event) => {
   event.target.value = "";
 });
 window.addEventListener("keydown", (event) => {
-  const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
-  if (!isUndo || event.altKey) return;
-  event.preventDefault();
-  undo();
+  const key = event.key.toLowerCase();
+  const isUndo = (event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey;
+  const isPicker = (event.ctrlKey || event.metaKey) && key === "x" && !event.altKey && !event.shiftKey;
+  const typing = /^(input|textarea|select)$/i.test(event.target.tagName);
+  if (isUndo && !event.altKey) { event.preventDefault(); undo(); return; }
+  if (isPicker && !typing) {
+    event.preventDefault();
+    if (!state.image) { notify("请先载入参考图"); return; }
+    if (state.tool === "picker") { state.tool = "paint"; }
+    else { state.tool = "picker"; }
+    updateToolButtons();
+  }
 });
 canvas.addEventListener("pointerdown", (event) => {
   if (state.imageDragMode && state.image) {
@@ -498,6 +561,10 @@ canvas.addEventListener("pointerdown", (event) => {
       height: rect.height,
     };
     canvas.setPointerCapture(event.pointerId);
+    return;
+  }
+  if (state.tool === "picker") {
+    pickColor(event);
     return;
   }
   state.drawing = true;

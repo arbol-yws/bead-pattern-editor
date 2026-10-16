@@ -73,11 +73,13 @@ h2 { font-size: 18px; font-weight: 600; }
 .dimension-fields input { width: 100%; margin-top: 6px; padding: 9px 10px; border: 1px solid var(--line); background: #fcfaf6; outline: none; color: var(--ink); }
 .dimension-fields input:focus, .search-box:focus-within { border-color: var(--accent); }
 .field-note { margin-top: 8px; color: var(--soft-muted); font-size: 10px; line-height: 1.55; }
-.tool-switcher { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.tool-switcher { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
 .tool-button { border: 1px solid var(--line); background: transparent; color: var(--muted); padding: 10px 8px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .tool-button.is-active { border-color: var(--ink); color: var(--ink); background: #f3efe8; }
 .tool-dot { width: 11px; height: 11px; border: 2px solid currentColor; border-radius: 50%; }
 .tool-eraser { font-size: 15px; line-height: 1; }
+.tool-picker { width: 11px; height: 11px; border-radius: 50%; background: currentColor; }
+#pattern-canvas.is-picking { cursor: crosshair; }
 .zoom-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 10px; }
 .zoom-row > span:first-child { margin-right: auto; }
 .icon-button { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); background: transparent; color: var(--ink); display: grid; place-items: center; font-size: 16px; }
