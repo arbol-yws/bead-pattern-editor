@@ -81,6 +81,8 @@ h2 { font-size: 18px; font-weight: 600; }
 .tool-picker { width: 11px; height: 11px; border-radius: 50%; background: currentColor; }
 .tool-auto { font-size: 13px; line-height: 1; }
 #pattern-canvas.is-picking { cursor: crosshair; }
+.sample-position-controls { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sample-position-controls .position-slider-row { margin-top: 10px; }
 .zoom-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 10px; }
 .zoom-row > span:first-child { margin-right: auto; }
 .icon-button { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); background: transparent; color: var(--ink); display: grid; place-items: center; font-size: 16px; }

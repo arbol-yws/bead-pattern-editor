@@ -101,6 +101,23 @@
             <button class="tool-button" id="picker-tool" type="button"><span class="tool-picker"></span>取色器</button>
             <button class="tool-button" id="auto-color-tool" type="button"><span class="tool-auto">✦</span>自动取色</button>
           </div>
+          <div class="sample-position-controls">
+            <div class="reference-control-heading">
+              <span>自动取色位置</span>
+              <button class="text-button" id="sample-position-reset" type="button">居中</button>
+            </div>
+            <div class="position-slider-row">
+              <span class="position-slider-label">左右</span>
+              <input id="sample-position-x-slider" type="range" min="0" max="100" step="1" value="50" aria-label="自动取色在格子内的左右位置">
+              <output id="sample-position-x-value">50%</output>
+            </div>
+            <div class="position-slider-row">
+              <span class="position-slider-label">上下</span>
+              <input id="sample-position-y-slider" type="range" min="0" max="100" step="1" value="50" aria-label="自动取色在格子内的上下位置">
+              <output id="sample-position-y-value">50%</output>
+            </div>
+            <p class="field-note">调整每个格子内的采样点，用于避开格子下方的其他颜色。</p>
+          </div>
           <div class="zoom-row">
             <span>画笔大小</span>
             <button class="icon-button" id="brush-out" type="button" aria-label="减小画笔">−</button>
@@ -172,6 +189,6 @@
     </main>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="./app.js?v=10" defer></script>
+  <script src="./app.js?v=11" defer></script>
 </body>
 </html>

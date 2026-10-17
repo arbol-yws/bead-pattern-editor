@@ -16,6 +16,8 @@ const state = {
   imageDragMode: false,
   imageDragStart: null,
   brushSize: 1,
+  samplePositionX: 0.5,
+  samplePositionY: 0.5,
   drawing: false,
   strokeHistorySaved: false,
   hoverCell: null,
@@ -79,8 +81,8 @@ function sampleCellColor(row, col) {
   const layout = getCanvasLayout();
   const cellW = layout.width / state.cols;
   const cellH = layout.height / state.rows;
-  const x = (col + 0.5) * cellW;
-  const y = (row + 0.5) * cellH;
+  const x = (col + state.samplePositionX) * cellW;
+  const y = (row + state.samplePositionY) * cellH;
   const coverScale = Math.max(layout.width / state.image.naturalWidth, layout.height / state.image.naturalHeight);
   const imageWidth = state.image.naturalWidth * coverScale * state.imageZoom;
   const imageHeight = state.image.naturalHeight * coverScale * state.imageZoom;
@@ -98,6 +100,15 @@ function sampleCellColor(row, col) {
   const sctx = state.imageSampler.getContext("2d", { willReadFrequently: true });
   const pixel = sctx.getImageData(imgPxX, imgPxY, 1, 1).data;
   return nearestColor([pixel[0], pixel[1], pixel[2]]);
+}
+
+function samplePointInCell(row, col, layout) {
+  const cellW = layout.width / state.cols;
+  const cellH = layout.height / state.rows;
+  return {
+    x: (col + state.samplePositionX) * cellW,
+    y: (row + state.samplePositionY) * cellH,
+  };
 }
 
 function pickColor(event) {
@@ -167,6 +178,10 @@ function updateStats() {
   $("#tool-label").textContent = state.imageDragMode ? "拖动参考图" : (state.tool === "eraser" ? "橡皮擦" : state.tool === "picker" ? "取色器" : state.tool === "auto" ? "自动取色" : "画笔");
   $("#zoom-value").textContent = `${Math.round(state.zoom * 100)}%`;
   $("#brush-value").textContent = state.brushSize;
+  $("#sample-position-x-value").textContent = `${Math.round(state.samplePositionX * 100)}%`;
+  $("#sample-position-y-value").textContent = `${Math.round(state.samplePositionY * 100)}%`;
+  $("#sample-position-x-slider").value = Math.round(state.samplePositionX * 100);
+  $("#sample-position-y-slider").value = Math.round(state.samplePositionY * 100);
   $("#image-zoom-value").textContent = `${Math.round(state.imageZoom * 100)}%`;
   $("#image-zoom-slider").value = Math.round(state.imageZoom * 100);
   $("#image-opacity-value").textContent = `${Math.round(state.imageOpacity * 100)}%`;
@@ -335,6 +350,19 @@ function draw() {
       ctx.strokeStyle = "rgba(22,33,29,.9)";
       ctx.lineWidth = Math.max(1, 1.5 / state.zoom);
       ctx.strokeRect(col0 * cellW + 0.5, row0 * cellH + 0.5, (col1 - col0 + 1) * cellW - 1, (row1 - row0 + 1) * cellH - 1);
+
+      if (state.tool === "auto") {
+        const samplePoint = samplePointInCell(hover.row, hover.col, layout);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(samplePoint.x, samplePoint.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#d4663c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(samplePoint.x, samplePoint.y, 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
   }
 }
@@ -555,9 +583,25 @@ function setBrushSize(size) {
   state.brushSize = Math.max(1, Math.min(9, Math.round(Number(size) || 1)));
   updateStats();
 }
+function setSamplePosition(axis, value) {
+  state[axis] = Math.max(0, Math.min(1, Number(value) / 100));
+  updateStats();
+  draw();
+}
+
+function resetSamplePosition() {
+  state.samplePositionX = 0.5;
+  state.samplePositionY = 0.5;
+  updateStats();
+  draw();
+  notify("取色位置已重置为格子中心");
+}
 $("#brush-in").addEventListener("click", () => setBrushSize(state.brushSize + 1));
 $("#brush-out").addEventListener("click", () => setBrushSize(state.brushSize - 1));
 $("#brush-reset").addEventListener("click", () => { setBrushSize(1); notify("画笔大小已重置"); });
+$("#sample-position-x-slider").addEventListener("input", (event) => setSamplePosition("samplePositionX", event.target.value));
+$("#sample-position-y-slider").addEventListener("input", (event) => setSamplePosition("samplePositionY", event.target.value));
+$("#sample-position-reset").addEventListener("click", resetSamplePosition);
 $("#zoom-in").addEventListener("click", () => { state.zoom = Math.min(2.5, state.zoom + .1); updateStats(); draw(); });
 $("#zoom-out").addEventListener("click", () => { state.zoom = Math.max(.5, state.zoom - .1); updateStats(); draw(); });
 $("#zoom-reset").addEventListener("click", () => { state.zoom = 1; updateStats(); draw(); });
