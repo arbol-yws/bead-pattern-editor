@@ -435,19 +435,23 @@ function createPatternId() {
   return `ptn_${date}_${randomId}`;
 }
 
+function getPatternTitle() {
+  return state.imageName.replace(/\.[^.]+$/, "") || $("#canvas-title").textContent.trim() || "untitled";
+}
+
 function exportJson() {
   const exportGrid = cropBlankEdges(state.grid);
   const patternId = createPatternId();
-  const name = state.imageName.replace(/\.[^.]+$/, "") || $("#canvas-title").textContent.trim() || "untitled";
+  const title = getPatternTitle();
   const data = {
     brand: "mard",
-    title: name,
+    title,
     categories: [],
     rows: exportGrid.length,
     cols: exportGrid[0].length,
     totalBeads: exportGrid.flat().filter(Boolean).length,
     star: 0,
-    coverImage: "",
+    coverImage: `${title}.png`,
     grid: exportGrid.map((row) => row.map((code) => code || null)),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
@@ -489,8 +493,8 @@ function exportCoverImage() {
       exportCtx.fillRect(offsetX + col * cellSize, offsetY + row * cellSize, cellSize, cellSize);
     }
   }
-  const patternId = createPatternId();
-  const filename = `${patternId}_cover.png`;
+  const title = getPatternTitle();
+  const filename = `${title}.png`;
   exportCanvas.toBlob((blob) => {
     if (!blob) { notify("封面图导出失败"); return; }
     const url = URL.createObjectURL(blob);
